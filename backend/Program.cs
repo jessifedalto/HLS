@@ -5,11 +5,47 @@ using Backend.Model;
 using System.Linq.Expressions;
 using System.Net;
 
+using YoutubeExplode;
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddControllers();
+
+builder.Services.AddScoped<HttpClient>(p =>
+{
+    var proxy = new WebProxy
+    {
+        Address = new Uri($"http://@rb-proxy-ca1.bosch.com:8080"),
+        BypassProxyOnLocal = false,
+        UseDefaultCredentials = false,
+
+        // *** These creds are given to the proxy server, not the web server ***
+        Credentials = new NetworkCredential(
+            userName: "disrct",
+            password: "etsps2024401")
+    };
+
+    // Now create a client handler which uses that proxy
+    var httpClientHandler = new HttpClientHandler
+    {
+        Proxy = proxy,
+    };
+
+    // Finally, create the HTTP client object
+    var client = new HttpClient(handler: httpClientHandler, disposeHandler: true);
+    return client;
+});
+
+builder.Services.AddScoped(p =>
+{
+    var client = p.GetService<HttpClient>();
+    if (client is null)
+        throw new Exception();
+
+    return new YoutubeClient(client);
+});
 
 builder.Services.AddDbContext<StreamingDBContext>();
 
@@ -31,9 +67,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseCors();
 app.MapControllers();
 
-app.UseCors();
 
 // addData();
 
@@ -104,3 +140,12 @@ app.Run();
 //     Console.WriteLine(contentHeader.Id);
 
 // }
+
+using (var context = new StreamingDBContext())
+{
+    var contents = context.Contents.ToList();
+    foreach (var content in contents)
+    {
+        Console.WriteLine(content); // Ajuste para exibir as propriedades relevantes
+    }
+}
