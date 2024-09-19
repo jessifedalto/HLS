@@ -15,17 +15,8 @@ namespace Backend.Controllers
     [ApiController]
     [Route("content")]
     [EnableCors("main")]
-    public class ContentController : ControllerBase
+    public class ContentController(YoutubeClient youtube, StreamingDBContext ctx) : ControllerBase
     {
-        private readonly YoutubeClient youtube;
-        private readonly StreamingDBContext ctx;
-
-        public ContentController(YoutubeClient youtube, StreamingDBContext ctx)
-        {
-            this.youtube = youtube;
-            this.ctx = ctx;
-        }
-
         [HttpGet("{id}")]
         public async Task<IActionResult> GetContent(Guid id)
         {
@@ -61,7 +52,7 @@ namespace Backend.Controllers
             var streamManifest = await youtube.Videos.Streams.GetManifestAsync(videoId);
             var streamInfo = streamManifest.GetMuxedStreams().GetWithHighestBitrate();
 
-            var videoFilePath = Path.Combine(Path.GetTempPath(), $"{video.Title}.mp4");
+            var videoFilePath = Path.Combine(Path.GetTempPath(), $"{videoUrl}.mp4");
 
             await youtube.Videos.Streams.DownloadAsync(streamInfo, videoFilePath);
 
@@ -79,7 +70,7 @@ namespace Backend.Controllers
                 CreateNoWindow = true
             };
 
-            using (var process = Process.Start(processStartInfo))
+            using (var process = Process.Start(processStartInfo)!)
             {
                 var error = await process.StandardError.ReadToEndAsync();
                 process.WaitForExit();
@@ -112,13 +103,6 @@ namespace Backend.Controllers
 
             System.IO.File.Delete(videoFilePath);
             Directory.Delete(hlsDirectory, true);
-        }
-
-        private string GetVideoId(string url)
-        {
-            var uri = new Uri(url);
-            var queryParams = System.Web.HttpUtility.ParseQueryString(uri.Query);
-            return queryParams["v"] ?? uri.Segments.Last();
         }
     }
 }
